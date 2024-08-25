@@ -426,6 +426,8 @@ def main() -> None:
   update_failed_count = 0  # TODO: Load from param?
   exception = None
 
+  print("Custom debug: DragonPilot modification in updated.py")
+
   if params.get_bool("DisableUpdates"):
     updater.set_params(False, update_failed_count, exception)
     cloudlog.warning("updates are disabled by the DisableUpdates param")
