@@ -1,35 +1,82 @@
-# hard-forked from https://github.com/commaai/openpilot/tree/05b37552f3a38f914af41f44ccc7c633ad152a15/selfdrive/boardd/pandad.py
+#!/usr/bin/env python3
 # simple boardd wrapper that updates the panda first
 import os
 import usb1
 import time
+import json
 import subprocess
 from typing import List, NoReturn
 from functools import cmp_to_key
 
-from panda import DEFAULT_FW_FN, DEFAULT_H7_FW_FN, MCU_TYPE_H7, Panda, PandaDFU
-from common.basedir import BASEDIR
-from common.params import Params
-from system.hardware import HARDWARE
-from selfdrive.swaglog import cloudlog
+from panda import Panda, PandaDFU, PandaProtocolMismatch, FW_PATH
+from openpilot.common.basedir import BASEDIR
+from openpilot.common.params import Params
+from openpilot.selfdrive.boardd.set_time import set_time
+from openpilot.system.hardware import HARDWARE
+from openpilot.system.swaglog import cloudlog
 
-from common.system import is_android, is_android_rooted
 
 def get_expected_signature(panda: Panda) -> bytes:
-  fn = DEFAULT_H7_FW_FN if (panda.get_mcu_type() == MCU_TYPE_H7) else DEFAULT_FW_FN
-
   try:
+    fn = os.path.join(FW_PATH, panda.get_mcu_type().config.app_fn)
     return Panda.get_signature_from_firmware(fn)
   except Exception:
     cloudlog.exception("Error computing expected signature")
     return b""
 
+def read_panda_logs(panda: Panda) -> None:
+  """
+    Forward panda logs to the cloud
+  """
+
+  params = Params()
+  serial = panda.get_usb_serial()
+
+  log_state = {}
+  try:
+    l = json.loads(params.get("PandaLogState"))
+    for k, v in l.items():
+      if isinstance(k, str) and isinstance(v, int):
+        log_state[k] = v
+  except (TypeError, json.JSONDecodeError):
+    cloudlog.exception("failed to parse PandaLogState")
+
+  try:
+    if serial in log_state:
+      logs = panda.get_logs(last_id=log_state[serial])
+    else:
+      logs = panda.get_logs(get_all=True)
+
+    # truncate logs to 100 entries if needed
+    MAX_LOGS = 100
+    if len(logs) > MAX_LOGS:
+      cloudlog.warning(f"Panda {serial} has {len(logs)} logs, truncating to {MAX_LOGS}")
+      logs = logs[-MAX_LOGS:]
+
+    # update log state
+    if len(logs) > 0:
+      log_state[serial] = logs[-1]["id"]
+
+    for log in logs:
+      if log['timestamp'] is not None:
+        log['timestamp'] = log['timestamp'].isoformat()
+      cloudlog.event("panda_log", **log, serial=serial)
+
+    params.put("PandaLogState", json.dumps(log_state))
+  except Exception:
+    cloudlog.exception(f"Error getting logs for panda {serial}")
+
 
 def flash_panda(panda_serial: str) -> Panda:
-  panda = Panda(panda_serial)
+  try:
+    panda = Panda(panda_serial)
+  except PandaProtocolMismatch:
+    cloudlog.warning("detected protocol mismatch, reflashing panda")
+    HARDWARE.recover_internal_panda()
+    raise
 
   fw_signature = get_expected_signature(panda)
-  internal_panda = panda.is_internal() and not panda.bootstub
+  internal_panda = panda.is_internal()
 
   panda_version = "bootstub" if panda.bootstub else panda.get_version()
   panda_signature = b"" if panda.bootstub else panda.get_signature()
@@ -42,11 +89,11 @@ def flash_panda(panda_serial: str) -> Panda:
 
   if panda.bootstub:
     bootstub_version = panda.get_version()
-    cloudlog.info(f"Flashed firmware not booting, flashing development bootloader. Bootstub version: {bootstub_version}")
+    cloudlog.info(f"Flashed firmware not booting, flashing development bootloader. {bootstub_version=}, {internal_panda=}")
     if internal_panda:
       HARDWARE.recover_internal_panda()
     panda.recover(reset=(not internal_panda))
-    cloudlog.info("Done flashing bootloader")
+    cloudlog.info("Done flashing bootstub")
 
   if panda.bootstub:
     cloudlog.info("Panda still not booting, exiting")
@@ -77,61 +124,30 @@ def panda_sort_cmp(a: Panda, b: Panda):
   # last resort: sort by serial number
   return a.get_usb_serial() < b.get_usb_serial()
 
-def is_panda(usb_fd):
-  os.chdir(os.path.join(BASEDIR, "selfdrive/boardd"))
-  try:
-    ret = eval(subprocess.check_output(["termux-usb", "-r", "-e", "./ispanda", usb_fd], encoding='utf8').rstrip())
-    return ret
-  except Exception as e:
-    return False 
-
-def main_android_no_root() -> NoReturn:
-  # android termux-usb implementation.
-  cloudlog.info(f"Running pandad in no-root mode")
-
-  print("listing usb devices.. if this hangs here, restart termux.")
-  while True:
-    try:
-      panda_descriptors = [] 
-      usb_fd_list = eval(subprocess.check_output(["termux-usb", "-l"], encoding='utf8').rstrip())
-
-      for usb_fd in usb_fd_list:
-        if is_panda(usb_fd):
-          panda_descriptors.append(usb_fd)      
-      if len(panda_descriptors) == 0:
-        print("no panda found, retrying..")
-        time.sleep(0.5)
-        continue
-      panda_descriptor = panda_descriptors[0] # pickup first panda
-      print(f"connecting to panda {panda_descriptor}..")
-
-    except Exception as e:
-      cloudlog.exception("Panda USB exception while setting up: " + str(e))
-      continue
-    
-    # run boardd with file descriptors as arguments
-    os.environ['MANAGER_DAEMON'] = 'boardd'
-    os.chdir(os.path.join(BASEDIR, "selfdrive/boardd"))
-    subprocess.run(["termux-usb", "-r", "-e", "./boardd", panda_descriptor], check=True)
 
 def main() -> NoReturn:
+  count = 0
   first_run = True
   params = Params()
 
   while True:
     try:
-      params.delete("PandaSignatures")
+      count += 1
+      cloudlog.event("pandad.flash_and_connect", count=count)
+      params.remove("PandaSignatures")
 
       # Flash all Pandas in DFU mode
-      for p in PandaDFU.list():
-        cloudlog.info(f"Panda in DFU mode found, flashing recovery {p}")
-        PandaDFU(p).recover()
-      time.sleep(1)
+      dfu_serials = PandaDFU.list()
+      if len(dfu_serials) > 0:
+        for serial in dfu_serials:
+          cloudlog.info(f"Panda in DFU mode found, flashing recovery {serial}")
+          PandaDFU(serial).recover()
+        time.sleep(1)
 
       panda_serials = Panda.list()
       if len(panda_serials) == 0:
         if first_run:
-          cloudlog.info("Resetting internal panda")
+          cloudlog.info("No pandas found, resetting internal panda")
           HARDWARE.reset_internal_panda()
           time.sleep(2)  # wait to come back up
         continue
@@ -154,19 +170,54 @@ def main() -> NoReturn:
           cloudlog.info(f"Resetting panda {panda.get_usb_serial()}")
           panda.reset()
 
+      # Ensure internal panda is present if expected
+      internal_pandas = [panda for panda in pandas if panda.is_internal()]
+      if HARDWARE.has_internal_panda() and len(internal_pandas) == 0:
+        cloudlog.error("Internal panda is missing, resetting")
+        HARDWARE.reset_internal_panda()
+        time.sleep(2)  # wait to come back up
+        continue
+
       # sort pandas to have deterministic order
       pandas.sort(key=cmp_to_key(panda_sort_cmp))
-      panda_serials = list(map(lambda p: p.get_usb_serial(), pandas))  # type: ignore
+      panda_serials = [p.get_usb_serial() for p in pandas]
 
       # log panda fw versions
       params.put("PandaSignatures", b','.join(p.get_signature() for p in pandas))
 
-      # close all pandas
+      # for panda in pandas:
+      #   # check health for lost heartbeat
+      #   health = panda.health()
+      #   if health["heartbeat_lost"]:
+      #     params.put_bool("PandaHeartbeatLost", True)
+      #     cloudlog.event("heartbeat lost", deviceState=health, serial=panda.get_usb_serial())
+      #
+      #   read_panda_logs(panda)
+      #
+      #   if first_run:
+      #     if panda.is_internal():
+      #       # update time from RTC
+      #       set_time(cloudlog)
+      #
+      #     # reset panda to ensure we're in a good state
+      #     cloudlog.info(f"Resetting panda {panda.get_usb_serial()}")
+      #     if panda.is_internal():
+      #       HARDWARE.reset_internal_panda()
+      #     else:
+      #       panda.reset(reconnect=False)
+
       for p in pandas:
         p.close()
+    # TODO: wrap all panda exceptions in a base panda exception
     except (usb1.USBErrorNoDevice, usb1.USBErrorPipe):
       # a panda was disconnected while setting everything up. let's try again
       cloudlog.exception("Panda USB exception while setting up")
+      continue
+    except PandaProtocolMismatch:
+      cloudlog.exception("pandad.protocol_mismatch")
+      continue
+    except Exception:
+      cloudlog.exception("pandad.uncaught_exception")
       continue
 
     first_run = False
@@ -176,11 +227,5 @@ def main() -> NoReturn:
     os.chdir(os.path.join(BASEDIR, "selfdrive/boardd"))
     subprocess.run(["./boardd", *panda_serials], check=True)
 
-def run():
-    if is_android() and not is_android_rooted():
-      main_android_no_root()    
-    else:
-      main()
-
 if __name__ == "__main__":
-  run()
+  main()
