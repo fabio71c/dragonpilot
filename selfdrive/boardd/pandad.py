@@ -69,54 +69,34 @@ def panda_sort_cmp(a: MockPanda, b: MockPanda):
   # Simulate deterministic ordering for the mock pandas
   return -1 if a.serial < b.serial else 1
 
+def mock_boardd(panda_serials):
+    print("Mock boardd running with serials:", panda_serials)
+    while True:
+        time.sleep(1)  # Simulate ongoing process
+
 def main() -> NoReturn:
-  count = 0
-  first_run = True
-  params = Params()
+    count = 0
+    first_run = True
+    params = Params()
 
-  print("Running modified pandad.py with MockPanda")
-  cloudlog.info("Running modified pandad.py with MockPanda")
+    while True:
+        try:
+            count += 1
+            cloudlog.event("pandad.flash_and_connect", count=count)
+            params.remove("PandaSignatures")
 
-  while True:
-    try:
-      count += 1
-      cloudlog.event("pandad.flash_and_connect", count=count)
-      params.remove("PandaSignatures")
+            # Mock connecting pandas
+            panda_serials = ["MOCK_SERIAL"]
+            cloudlog.info(f"Mock panda(s) found, connecting - {panda_serials}")
 
-      # Since we are using a MockPanda, we bypass the DFU checks
-      panda_serials = ["MOCK_SERIAL"]
-      cloudlog.info(f"{len(panda_serials)} mock panda(s) found, connecting - {panda_serials}")
+            # Run the mock boardd process instead of the real one
+            mock_boardd(panda_serials)
 
-      # Initialize the mock pandas
-      pandas: List[MockPanda] = [flash_panda(serial) for serial in panda_serials]
-
-      # Simulate health checks
-      for panda in pandas:
-        health = panda.health()
-        if health["heartbeat_lost"]:
-          params.put_bool("PandaHeartbeatLost", True)
-          cloudlog.event("heartbeat lost", deviceState=health, serial=panda.get_usb_serial())
-
-        if first_run:
-          cloudlog.info(f"Resetting mock panda {panda.get_usb_serial()}")
-          panda.reset()
-
-      # Log panda fw versions
-      params.put("PandaSignatures", b','.join(p.get_signature() for p in pandas))
-
-      for p in pandas:
-        p.close()
-
-    except Exception:
-      cloudlog.exception("pandad.uncaught_exception")
-      continue
-
-    first_run = False
-
-    # Run boardd with the mock panda serials as arguments
-    os.environ['MANAGER_DAEMON'] = 'boardd'
-    os.chdir(os.path.join(BASEDIR, "selfdrive/boardd"))
-    subprocess.run(["./boardd", *panda_serials], check=True)
+            break
+        except Exception as e:
+            cloudlog.exception("pandad.uncaught_exception")
+            print(f"Error: {e}")
+            continue
 
 if __name__ == "__main__":
   main()
