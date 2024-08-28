@@ -66,7 +66,55 @@ def read_panda_logs(panda: Panda) -> None:
   except Exception:
     cloudlog.exception(f"Error getting logs for panda {serial}")
 
+class MockPanda:
+    def __init__(self, serial="MOCK_SERIAL"):
+        self.serial = serial
 
+    def get_signature(self):
+        return b"mock_signature"
+
+    def get_usb_serial(self):
+        return "mock_serial"
+
+    def health(self):
+        # Simulated health status
+        return {
+            "uptime": 1000,
+            "voltage": 12000,
+            "current": 500,
+            "safety_tx_blocked": 0,
+            "safety_rx_invalid": 0,
+            "tx_buffer_overflow": 0,
+            "rx_buffer_overflow": 0,
+            "gmlan_send_errs": 0,
+            "faults": 0,
+            "ignition_line": 1,
+            "ignition_can": 1,
+            "controls_allowed": 1,
+            "heartbeat_lost": False,
+            "alternative_experience": 0,
+            "interrupt_load": 10,
+            "fan_power": 50,
+            "safety_rx_checks_invalid": 0,
+            "spi_checksum_error_count": 0,
+            "fan_stall_count": 0,
+            "usb_power_mode": 1,
+            "torque_interceptor_detected": 0
+        }
+
+    def reset(self, reconnect=False):
+        pass
+
+    def close(self):
+        pass
+
+    def is_internal(self):
+        return False
+
+# Modify this function to use MockPanda instead of real Panda
+def flash_panda(panda_serial: str) -> MockPanda:
+    return MockPanda(panda_serial)
+'''
 def flash_panda(panda_serial: str) -> Panda:
   try:
     panda = Panda(panda_serial)
@@ -105,7 +153,7 @@ def flash_panda(panda_serial: str) -> Panda:
     raise AssertionError
 
   return panda
-
+'''
 
 def panda_sort_cmp(a: Panda, b: Panda):
   a_type = a.get_type()
