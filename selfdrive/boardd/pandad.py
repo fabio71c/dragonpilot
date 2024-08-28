@@ -74,6 +74,9 @@ def main() -> NoReturn:
   first_run = True
   params = Params()
 
+  print("Running modified pandad.py with MockPanda")
+  cloudlog.info("Running modified pandad.py with MockPanda")
+
   while True:
     try:
       count += 1
