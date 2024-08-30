@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 # simple boardd wrapper that updates the panda first
+import sys
+print(f"Python version: {sys.version}")
+print(f"Python executable: {sys.executable}")
+print(f"__name__: {__name__}")
+
 import os
 import usb1
 import time
@@ -14,6 +19,8 @@ from openpilot.common.params import Params
 from openpilot.selfdrive.boardd.set_time import set_time
 from openpilot.system.hardware import HARDWARE
 from openpilot.system.swaglog import cloudlog
+
+print("Imports completed")
 
 USE_MOCK_PANDA = os.environ.get('USE_MOCK_PANDA', '1') == '1'
 
@@ -68,13 +75,16 @@ class MockPanda:
 
 class Panda:
     def __init__(self, serial=None, claim=True):
+        print(f"Initializing Panda with USE_MOCK_PANDA={USE_MOCK_PANDA}")
         if USE_MOCK_PANDA:
+            print("Creating MockPanda instance")
             self._panda = MockPanda()
         else:
             # Original Panda initialization code
             raise NotImplementedError("Real Panda support is disabled")
 
     def health(self):
+        print("Calling health method")
         return self._panda.health()
 
     def get_usb_serial(self):
@@ -97,6 +107,10 @@ class Panda:
 
     def reset(self):
         return self._panda.reset()
+
+    print("Classes defined")
+
+    
 
 def get_expected_signature(panda: Panda) -> bytes:
   try:
@@ -211,6 +225,7 @@ def panda_sort_cmp(a: Panda, b: Panda):
 
 
 def main() -> NoReturn:
+  print("Entered main function")
   count = 0
   first_run = True
   params = Params()
@@ -218,39 +233,45 @@ def main() -> NoReturn:
   while True:
     try:
       count += 1
+      print(f"Main loop iteration: {count}")
       cloudlog.event("pandad.flash_and_connect", count=count)
       params.remove("PandaSignatures")
 
       if USE_MOCK_PANDA:
-          panda_serials = ["MOCK"]
+        print("Using MockPanda")
+        panda_serials = ["MOCK"]
       else:
-          # Flash all Pandas in DFU mode
-          dfu_serials = PandaDFU.list()
-          if len(dfu_serials) > 0:
-            for serial in dfu_serials:
-              cloudlog.info(f"Panda in DFU mode found, flashing recovery {serial}")
-              PandaDFU(serial).recover()
-            time.sleep(1)
+        print("Using Real Panda")
+        # Flash all Pandas in DFU mode
+        dfu_serials = PandaDFU.list()
+        if len(dfu_serials) > 0:
+          for serial in dfu_serials:
+            cloudlog.info(f"Panda in DFU mode found, flashing recovery {serial}")
+            PandaDFU(serial).recover()
+          time.sleep(1)
 
-          panda_serials = Panda.list()
-          if len(panda_serials) == 0:
-            if first_run:
-              cloudlog.info("No pandas found, resetting internal panda")
-              HARDWARE.reset_internal_panda()
-              time.sleep(2)  # wait to come back up
-            continue
+        panda_serials = Panda.list()
+        if len(panda_serials) == 0:
+          if first_run:
+            cloudlog.info("No pandas found, resetting internal panda")
+            HARDWARE.reset_internal_panda()
+            time.sleep(2)  # wait to come back up
+          continue
 
+      print(f"Panda serials: {panda_serials}")
       cloudlog.info(f"{len(panda_serials)} panda(s) found, connecting - {panda_serials}")
 
       # Flash pandas
       pandas: List[Panda] = []
       for serial in panda_serials:
+        print(f"Flashing panda: {serial}")
         pandas.append(flash_panda(serial))
 
       # check health for lost heartbeat
       for panda in pandas:
         print(f"Checking health for panda: {panda.get_usb_serial()}")
         health = panda.health()
+        print(f"Health: {health}")
         if health["heartbeat_lost"]:
           params.put_bool("PandaHeartbeatLost", True)
           cloudlog.event("heartbeat lost", deviceState=health, serial=panda.get_usb_serial())
@@ -277,7 +298,6 @@ def main() -> NoReturn:
 
       for p in pandas:
         p.close()
-    # TODO: wrap all panda exceptions in a base panda exception
     except (usb1.USBErrorNoDevice, usb1.USBErrorPipe):
       # a panda was disconnected while setting everything up. let's try again
       cloudlog.exception("Panda USB exception while setting up")
@@ -285,10 +305,12 @@ def main() -> NoReturn:
     except PandaProtocolMismatch:
       cloudlog.exception("pandad.protocol_mismatch")
       continue
-    except Exception:
+    except Exception as e:
+      print(f"Exception in main loop: {e}")
       cloudlog.exception("pandad.uncaught_exception")
       continue
 
+    print("Exiting main loop iteration")
     first_run = False
 
     # run boardd with all connected serials as arguments
@@ -297,4 +319,5 @@ def main() -> NoReturn:
     subprocess.run(["./boardd", *panda_serials], check=True)
 
 if __name__ == "__main__":
+  print("Starting main function")
   main()
