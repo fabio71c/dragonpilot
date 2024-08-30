@@ -271,29 +271,25 @@ class Updater:
 
   @property
   def update_available(self) -> bool:
-    if os.path.isdir(OVERLAY_MERGED):
-      hash_mismatch = self.get_commit_hash(OVERLAY_MERGED) != self.branches[self.target_branch]
-      branch_mismatch = self.get_branch(OVERLAY_MERGED) != self.target_branch
-      return hash_mismatch or branch_mismatch
-    return False
+    if not os.path.isdir(OVERLAY_MERGED):
+      return False
+    hash_mismatch = self.get_commit_hash() != self.branches[self.target_branch]
+    branch_mismatch = self.get_branch() != self.target_branch
+    return hash_mismatch or branch_mismatch
 
-  def get_branch(self, path: str) -> str:
-    return run(["git", "rev-parse", "--abbrev-ref", "HEAD"], path).rstrip()
-
-  def get_commit_hash(self, path: str = OVERLAY_MERGED) -> str:
+  def get_branch(self, path=BASEDIR):
     try:
-      current_dir = os.getcwd()
-      os.chdir(path)
-      result = run(["git", "rev-parse", "HEAD"], path).rstrip()
-      os.chdir(current_dir)
-      return result
-    except subprocess.CalledProcessError as e:
-      print(f"Error getting commit hash: {e}")
-      print(f"Current working directory: {os.getcwd()}")
-      print(f"Attempted path: {path}")
-      print(f"Directory contents: {os.listdir(path)}")
-      print(f"Is .git present: {'.git' in os.listdir(path)}")
-      return "unknown_hash_for_testing"
+      return run(["git", "rev-parse", "--abbrev-ref", "HEAD"], path).rstrip()
+    except subprocess.CalledProcessError:
+      print(f"Warning: Unable to get git branch for {path}. Using fallback.")
+      return self.get_branch(BASEDIR)  # Fallback to BASEDIR
+
+  def get_commit_hash(self, path=BASEDIR):
+    try:
+      return run(["git", "rev-parse", "HEAD"], path).rstrip()
+    except subprocess.CalledProcessError:
+      print(f"Warning: Unable to get git commit hash for {path}. Using fallback.")
+      return self.get_commit_hash(BASEDIR)  # Fallback to BASEDIR
 
   def set_params(self, update_success: bool, failed_count: int, exception: Optional[str]) -> None:
     self.params.put("UpdateFailedCount", str(failed_count))
@@ -432,107 +428,105 @@ class Updater:
 
 
 def main() -> None:
+  params = Params()
+
+  updater = Updater()
+  update_failed_count = 0  # TODO: Load from param?
+  exception = None
+
+  print("Custom debug: DragonPilot modification in updated.py")
+
+  if params.get_bool("DisableUpdates"):
+    updater.set_params(False, update_failed_count, exception)
+    cloudlog.warning("updates are disabled by the DisableUpdates param")
+    exit(0)
+
+  ov_lock_fd = open(LOCK_FILE, 'w')
   try:
-    params = Params()
+    fcntl.flock(ov_lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+  except OSError as e:
+    raise RuntimeError("couldn't get overlay lock; is another instance running?") from e
 
-    updater = Updater()
-    update_failed_count = 0  # TODO: Load from param?
-    exception = None
+  # Set low io priority
+  proc = psutil.Process()
+  if psutil.LINUX:
+    proc.ionice(psutil.IOPRIO_CLASS_BE, value=7)
 
-    print("Custom debug: DragonPilot modification in updated.py")
+  # Check if we just performed an update
+  if Path(os.path.join(STAGING_ROOT, "old_openpilot")).is_dir():
+    cloudlog.event("update installed")
 
-    if params.get_bool("DisableUpdates"):
-      updater.set_params(False, update_failed_count, exception)
-      cloudlog.warning("updates are disabled by the DisableUpdates param")
-      exit(0)
+  if not params.get("InstallDate"):
+    t = datetime.datetime.utcnow().isoformat()
+    params.put("InstallDate", t.encode('utf8'))
 
-    ov_lock_fd = open(LOCK_FILE, 'w')
+  # updater = Updater()
+  # update_failed_count = 0 # TODO: Load from param?
+
+  # no fetch on the first time
+  wait_helper = WaitTimeHelper()
+  wait_helper.only_check_for_update = True
+
+  # invalidate old finalized update
+  set_consistent_flag(False)
+
+  # Run the update loop
+  while True:
+    wait_helper.ready_event.clear()
+
+    # Attempt an update
+    # exception = None
     try:
-      fcntl.flock(ov_lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError as e:
-      raise RuntimeError("couldn't get overlay lock; is another instance running?") from e
+      # TODO: reuse overlay from previous updated instance if it looks clean
+      init_overlay()
 
-    # Set low io priority
-    proc = psutil.Process()
-    if psutil.LINUX:
-      proc.ionice(psutil.IOPRIO_CLASS_BE, value=7)
+      # ensure we have some params written soon after startup
+      updater.set_params(False, update_failed_count, exception)
 
-    # Check if we just performed an update
-    if Path(os.path.join(STAGING_ROOT, "old_openpilot")).is_dir():
-      cloudlog.event("update installed")
+      if not system_time_valid():
+        wait_helper.sleep(60)
+        continue
 
-    if not params.get("InstallDate"):
-      t = datetime.datetime.utcnow().isoformat()
-      params.put("InstallDate", t.encode('utf8'))
+      update_failed_count += 1
 
-    # updater = Updater()
-    # update_failed_count = 0 # TODO: Load from param?
+      # check for update
+      params.put("UpdaterState", "checking...")
+      updater.check_for_update()
 
-    # no fetch on the first time
-    wait_helper = WaitTimeHelper()
-    wait_helper.only_check_for_update = True
+      # download update
+      if wait_helper.only_check_for_update:
+        cloudlog.info("skipping fetch this cycle")
+      else:
+        updater.fetch_update()
+      update_failed_count = 0
+    except subprocess.CalledProcessError as e:
+      cloudlog.event(
+        "update process failed",
+        cmd=e.cmd,
+        output=e.output,
+        returncode=e.returncode
+      )
+      exception = f"command failed: {e.cmd}\n{e.output}"
+      OVERLAY_INIT.unlink(missing_ok=True)
+    except Exception as e:
+      cloudlog.exception("uncaught updated exception, shouldn't happen")
+      exception = str(e)
+      OVERLAY_INIT.unlink(missing_ok=True)
 
-    # invalidate old finalized update
-    set_consistent_flag(False)
+    try:
+      params.put("UpdaterState", "idle")
+      update_successful = (update_failed_count == 0)
+      updater.set_params(update_successful, update_failed_count, exception)
+    except Exception:
+      cloudlog.exception("uncaught updated exception while setting params, shouldn't happen")
 
-    # Run the update loop
-    while True:
-      wait_helper.ready_event.clear()
-
-      # Attempt an update
-      # exception = None
-      try:
-        # TODO: reuse overlay from previous updated instance if it looks clean
-        init_overlay()
-
-        # ensure we have some params written soon after startup
-        updater.set_params(False, update_failed_count, exception)
-
-        if not system_time_valid():
-          wait_helper.sleep(60)
-          continue
-
-        update_failed_count += 1
-
-        # check for update
-        params.put("UpdaterState", "checking...")
-        updater.check_for_update()
-
-        # download update
-        if wait_helper.only_check_for_update:
-          cloudlog.info("skipping fetch this cycle")
-        else:
-          updater.fetch_update()
-        update_failed_count = 0
-      except subprocess.CalledProcessError as e:
-        cloudlog.event(
-          "update process failed",
-          cmd=e.cmd,
-          output=e.output,
-          returncode=e.returncode
-        )
-        exception = f"command failed: {e.cmd}\n{e.output}"
-        OVERLAY_INIT.unlink(missing_ok=True)
-      except Exception as e:
-        cloudlog.exception("uncaught updated exception, shouldn't happen")
-        exception = str(e)
-        OVERLAY_INIT.unlink(missing_ok=True)
-
-      try:
-        params.put("UpdaterState", "idle")
-        update_successful = (update_failed_count == 0)
-        updater.set_params(update_successful, update_failed_count, exception)
-      except Exception:
-        cloudlog.exception("uncaught updated exception while setting params, shouldn't happen")
-
-      # infrequent attempts if we successfully updated recently
-      wait_helper.only_check_for_update = False
-      wait_helper.sleep(5*60 if update_failed_count > 0 else 1.5*60*60)
-  except Exception as e:
-    print(f"Unexpected error in updated.py: {e}")
-    import traceback
-    traceback.print_exc()
+    # infrequent attempts if we successfully updated recently
+    wait_helper.only_check_for_update = False
+    wait_helper.sleep(5*60 if update_failed_count > 0 else 1.5*60*60)
 
 
 if __name__ == "__main__":
-  main()
+  try:
+    main()
+  except Exception as e:
+    cloudlog.exception("Unexpected error in updated.py")
