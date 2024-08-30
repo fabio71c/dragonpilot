@@ -28,8 +28,8 @@ class MockPanda:
 
     def health(self):
         return {
-            'voltage': 12000 + random.randint(-500, 500),
-            'current': 5000 + random.randint(-1000, 1000),
+            'voltage': 12000,
+            'current': 5000,
             'can_send_errs': 0,
             'can_rx_errs': 0,
             'gmlan_send_errs': 0,
