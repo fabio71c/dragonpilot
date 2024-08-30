@@ -16,6 +16,56 @@ from openpilot.system.hardware import HARDWARE
 from openpilot.system.swaglog import cloudlog
 
 USE_MOCK_PANDA = os.environ.get('USE_MOCK_PANDA', '1') == '1'
+
+class MockPanda:
+    def __init__(self):
+        self.connected = True
+        self.usb_power_mode = 0
+        self.safety_model = 0
+        self.alternative_experience = 0
+        self.hw_type = 'MOCK'
+        self.has_rtc = False
+
+    def health(self):
+        return {
+            'voltage': 12000 + random.randint(-500, 500),
+            'current': 5000 + random.randint(-1000, 1000),
+            'can_send_errs': 0,
+            'can_rx_errs': 0,
+            'gmlan_send_errs': 0,
+            'fault_status': 0,
+            'power_save_enabled': False,
+            'uptime': int(time.time()),
+            'tx_buffer_overflow': 0,
+            'rx_buffer_overflow': 0,
+            'ignition_line': 1,
+            'fan_power': 0,
+            'safety_mode': self.safety_model,
+            'alternative_experience': self.alternative_experience,
+            'heartbeat_lost': False,
+        }
+
+    def get_usb_serial(self):
+        return "MOCK"
+
+    def get_type(self):
+        return "MOCK"
+
+    def is_internal(self):
+        return True
+
+    def get_signature(self):
+        return b"MOCK"
+
+    def get_version(self):
+        return "MOCK v1.0"
+
+    def close(self):
+        pass
+
+    def reset(self):
+        pass
+
 class Panda:
     def __init__(self, serial=None, claim=True):
         if USE_MOCK_PANDA:
@@ -47,7 +97,7 @@ class Panda:
 
     def reset(self):
         return self._panda.reset()
-
+        
 def get_expected_signature(panda: Panda) -> bytes:
   try:
     fn = os.path.join(FW_PATH, panda.get_mcu_type().config.app_fn)
