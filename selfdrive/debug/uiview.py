@@ -27,7 +27,11 @@ if __name__ == "__main__":
     while True:
       time.sleep(1 / 100)  # continually send, rate doesn't matter
       for s in msgs:
-        pm.send(s, msgs[s])
+        try:
+          pm.send(s, msgs[s])
+        except Exception as e:
+          print(f"Error sending message: {e}")
+          continue
   except KeyboardInterrupt:
     for p in procs:
       managed_processes[p].stop()
