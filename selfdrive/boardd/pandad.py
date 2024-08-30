@@ -97,7 +97,7 @@ class Panda:
 
     def reset(self):
         return self._panda.reset()
-        
+
 def get_expected_signature(panda: Panda) -> bytes:
   try:
     fn = os.path.join(FW_PATH, panda.get_mcu_type().config.app_fn)
@@ -249,6 +249,7 @@ def main() -> NoReturn:
 
       # check health for lost heartbeat
       for panda in pandas:
+        print(f"Checking health for panda: {panda.get_usb_serial()}")
         health = panda.health()
         if health["heartbeat_lost"]:
           params.put_bool("PandaHeartbeatLost", True)
