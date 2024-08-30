@@ -15,6 +15,38 @@ from openpilot.selfdrive.boardd.set_time import set_time
 from openpilot.system.hardware import HARDWARE
 from openpilot.system.swaglog import cloudlog
 
+USE_MOCK_PANDA = os.environ.get('USE_MOCK_PANDA', '1') == '1'
+class Panda:
+    def __init__(self, serial=None, claim=True):
+        if USE_MOCK_PANDA:
+            self._panda = MockPanda()
+        else:
+            # Original Panda initialization code
+            raise NotImplementedError("Real Panda support is disabled")
+
+    def health(self):
+        return self._panda.health()
+
+    def get_usb_serial(self):
+        return self._panda.get_usb_serial()
+
+    def get_type(self):
+        return self._panda.get_type()
+
+    def is_internal(self):
+        return self._panda.is_internal()
+
+    def get_signature(self):
+        return self._panda.get_signature()
+
+    def get_version(self):
+        return self._panda.get_version()
+
+    def close(self):
+        return self._panda.close()
+
+    def reset(self):
+        return self._panda.reset()
 
 def get_expected_signature(panda: Panda) -> bytes:
   try:
@@ -68,43 +100,46 @@ def read_panda_logs(panda: Panda) -> None:
 
 
 def flash_panda(panda_serial: str) -> Panda:
-  try:
-    panda = Panda(panda_serial)
-  except PandaProtocolMismatch:
-    cloudlog.warning("detected protocol mismatch, reflashing panda")
-    HARDWARE.recover_internal_panda()
-    raise
-
-  fw_signature = get_expected_signature(panda)
-  internal_panda = panda.is_internal()
-
-  panda_version = "bootstub" if panda.bootstub else panda.get_version()
-  panda_signature = b"" if panda.bootstub else panda.get_signature()
-  cloudlog.warning(f"Panda {panda_serial} connected, version: {panda_version}, signature {panda_signature.hex()[:16]}, expected {fw_signature.hex()[:16]}")
-
-  if panda.bootstub or panda_signature != fw_signature:
-    cloudlog.info("Panda firmware out of date, update required")
-    panda.flash()
-    cloudlog.info("Done flashing")
-
-  if panda.bootstub:
-    bootstub_version = panda.get_version()
-    cloudlog.info(f"Flashed firmware not booting, flashing development bootloader. {bootstub_version=}, {internal_panda=}")
-    if internal_panda:
+  if USE_MOCK_PANDA:
+    return Panda(panda_serial)
+  else:
+    try:
+      panda = Panda(panda_serial)
+    except PandaProtocolMismatch:
+      cloudlog.warning("detected protocol mismatch, reflashing panda")
       HARDWARE.recover_internal_panda()
-    panda.recover(reset=(not internal_panda))
-    cloudlog.info("Done flashing bootstub")
+      raise
 
-  if panda.bootstub:
-    cloudlog.info("Panda still not booting, exiting")
-    raise AssertionError
+    fw_signature = get_expected_signature(panda)
+    internal_panda = panda.is_internal()
 
-  panda_signature = panda.get_signature()
-  if panda_signature != fw_signature:
-    cloudlog.info("Version mismatch after flashing, exiting")
-    raise AssertionError
+    panda_version = "bootstub" if panda.bootstub else panda.get_version()
+    panda_signature = b"" if panda.bootstub else panda.get_signature()
+    cloudlog.warning(f"Panda {panda_serial} connected, version: {panda_version}, signature {panda_signature.hex()[:16]}, expected {fw_signature.hex()[:16]}")
 
-  return panda
+    if panda.bootstub or panda_signature != fw_signature:
+      cloudlog.info("Panda firmware out of date, update required")
+      panda.flash()
+      cloudlog.info("Done flashing")
+
+    if panda.bootstub:
+      bootstub_version = panda.get_version()
+      cloudlog.info(f"Flashed firmware not booting, flashing development bootloader. {bootstub_version=}, {internal_panda=}")
+      if internal_panda:
+        HARDWARE.recover_internal_panda()
+      panda.recover(reset=(not internal_panda))
+      cloudlog.info("Done flashing bootstub")
+
+    if panda.bootstub:
+      cloudlog.info("Panda still not booting, exiting")
+      raise AssertionError
+
+    panda_signature = panda.get_signature()
+    if panda_signature != fw_signature:
+      cloudlog.info("Version mismatch after flashing, exiting")
+      raise AssertionError
+
+    return panda
 
 
 def panda_sort_cmp(a: Panda, b: Panda):
@@ -136,21 +171,24 @@ def main() -> NoReturn:
       cloudlog.event("pandad.flash_and_connect", count=count)
       params.remove("PandaSignatures")
 
-      # Flash all Pandas in DFU mode
-      dfu_serials = PandaDFU.list()
-      if len(dfu_serials) > 0:
-        for serial in dfu_serials:
-          cloudlog.info(f"Panda in DFU mode found, flashing recovery {serial}")
-          PandaDFU(serial).recover()
-        time.sleep(1)
+      if USE_MOCK_PANDA:
+          panda_serials = ["MOCK"]
+      else:
+          # Flash all Pandas in DFU mode
+          dfu_serials = PandaDFU.list()
+          if len(dfu_serials) > 0:
+            for serial in dfu_serials:
+              cloudlog.info(f"Panda in DFU mode found, flashing recovery {serial}")
+              PandaDFU(serial).recover()
+            time.sleep(1)
 
-      panda_serials = Panda.list()
-      if len(panda_serials) == 0:
-        if first_run:
-          cloudlog.info("No pandas found, resetting internal panda")
-          HARDWARE.reset_internal_panda()
-          time.sleep(2)  # wait to come back up
-        continue
+          panda_serials = Panda.list()
+          if len(panda_serials) == 0:
+            if first_run:
+              cloudlog.info("No pandas found, resetting internal panda")
+              HARDWARE.reset_internal_panda()
+              time.sleep(2)  # wait to come back up
+            continue
 
       cloudlog.info(f"{len(panda_serials)} panda(s) found, connecting - {panda_serials}")
 
@@ -170,41 +208,21 @@ def main() -> NoReturn:
           cloudlog.info(f"Resetting panda {panda.get_usb_serial()}")
           panda.reset()
 
-      # Ensure internal panda is present if expected
-      internal_pandas = [panda for panda in pandas if panda.is_internal()]
-      if HARDWARE.has_internal_panda() and len(internal_pandas) == 0:
-        cloudlog.error("Internal panda is missing, resetting")
-        HARDWARE.reset_internal_panda()
-        time.sleep(2)  # wait to come back up
-        continue
+      if not USE_MOCK_PANDA:
+        # Ensure internal panda is present if expected
+        internal_pandas = [panda for panda in pandas if panda.is_internal()]
+        if HARDWARE.has_internal_panda() and len(internal_pandas) == 0:
+          cloudlog.error("Internal panda is missing, resetting")
+          HARDWARE.reset_internal_panda()
+          time.sleep(2)  # wait to come back up
+          continue
 
-      # sort pandas to have deterministic order
-      pandas.sort(key=cmp_to_key(panda_sort_cmp))
-      panda_serials = [p.get_usb_serial() for p in pandas]
+        # sort pandas to have deterministic order
+        pandas.sort(key=cmp_to_key(panda_sort_cmp))
+        panda_serials = [p.get_usb_serial() for p in pandas]
 
       # log panda fw versions
       params.put("PandaSignatures", b','.join(p.get_signature() for p in pandas))
-
-      # for panda in pandas:
-      #   # check health for lost heartbeat
-      #   health = panda.health()
-      #   if health["heartbeat_lost"]:
-      #     params.put_bool("PandaHeartbeatLost", True)
-      #     cloudlog.event("heartbeat lost", deviceState=health, serial=panda.get_usb_serial())
-      #
-      #   read_panda_logs(panda)
-      #
-      #   if first_run:
-      #     if panda.is_internal():
-      #       # update time from RTC
-      #       set_time(cloudlog)
-      #
-      #     # reset panda to ensure we're in a good state
-      #     cloudlog.info(f"Resetting panda {panda.get_usb_serial()}")
-      #     if panda.is_internal():
-      #       HARDWARE.reset_internal_panda()
-      #     else:
-      #       panda.reset(reconnect=False)
 
       for p in pandas:
         p.close()
