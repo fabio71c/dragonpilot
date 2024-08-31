@@ -5,70 +5,41 @@ from openpilot.selfdrive.boardd.boardd_api_impl import can_list_to_can_capnp
 assert can_list_to_can_capnp
 
 import time
-from openpilot.system.swaglog import cloudlog
-from selfdrive.car.toyota.values import CAR as TOYOTA
-
-def can_capnp_to_can_list(can, src_filter=None):
-  ret = []
-  for msg in can:
-    if src_filter is None or msg.src in src_filter:
-      ret.append((msg.address, msg.busTime, msg.dat, msg.src))
-  return ret
-
-def can_sender(panda, msgs, bus):
-  # Comment out the original implementation
-  # try:
-  #   for m in msgs:
-  #     panda.can_send(m.address, m.dat, bus)
-  # except panda.CanPacketDropped:
-  #   cloudlog.error("Bus %d dropped at %d with %d messages remaining", bus, time.time(), len(msgs))
-  #   return False
-
-  # Always return True to simulate successful sending
-  return True
+from selfdrive.swaglog import cloudlog
+from openpilot.common.params import Params
 
 class FakePanda:
     def __init__(self):
-        self.health = {"voltage": 12000, "current": 5000}
+        self.health = {"voltage": 12000, "current": 5000, "uptime": 1000}
+        self.serial = "FAKE00000000"
+
     def get_health(self):
         return self.health
+
     def can_recv(self):
         return []
+
     def can_send(self, addr, dat, bus):
         return True
 
-def boardd_mock_loop():
-  # Simulate panda presence
-  cloudlog.info("Simulating panda presence")
+def boardd_loop(fake_panda):
+    cloudlog.info("Starting boardd loop with fake panda")
+    params = Params()
+    params.put("PandaSignatures", fake_panda.serial)
 
-  # Simulate car data
-  while True:
-    # Create fake CAN messages here
-    fake_can_msgs = [
-      # Example: Speed message (modify according to the car model you're simulating)
-      {"address": 0x2c4, "dat": b'\x00\x00\x00\x00\x00\x00\x00\x00', "bus": 0},
-      # Add more fake messages as needed
-    ]
+    while True:
+        health = fake_panda.get_health()
+        cloudlog.debug(f"Fake panda health: {health}")
+        time.sleep(0.1)
 
-    # Send fake messages
-    for msg in fake_can_msgs:
-      can_sender(None, [msg], msg['bus'])
+def panda_connect():
+    cloudlog.info("Connecting to fake panda")
+    return FakePanda()
 
-    time.sleep(0.01)  # Simulate message frequency
+def main():
+    cloudlog.info("Boardd is using a fake panda")
+    fake_panda = panda_connect()
+    boardd_loop(fake_panda)
 
-def boardd_loop():
-  cloudlog.info("Starting fake boardd loop")
-  fake_panda = FakePanda()
-  
-  while True:
-    # Simulate panda communication
-    can_recv = fake_panda.can_recv()
-    health = fake_panda.get_health()
-    
-    # Log some fake data to show it's working
-    if len(can_recv) > 0:
-      cloudlog.debug(f"Received {len(can_recv)} fake CAN messages")
-    
-    cloudlog.debug(f"Fake panda health: {health}")
-    
-    time.sleep(0.01)
+if __name__ == "__main__":
+    main()
