@@ -68,6 +68,11 @@ DP_VAG_TIMEBOMB_BYPASS_END = 348000
 
 MOCK_DRAGONPILOT = os.environ.get('MOCK_DRAGONPILOT', '0') == '1'
 
+if MOCK_DRAGONPILOT:
+  from selfdrive.boardd.boardd import MOCK_CARSTATE as CS
+else:
+  # Original import for real car state
+
 class Controls:
   def __init__(self, sm=None, pm=None, can_sock=None, CI=None):
     config_realtime_process(4 if TICI else 3, Priority.CTRL_HIGH)
