@@ -1,5 +1,10 @@
 #!/usr/bin/bash
 
+# Add these lines near the beginning of the file, after the initial checks
+# but before the main logic starts
+export SKIP_FW_QUERY=1
+export FINGERPRINT="TOYOTA COROLLA 2017"
+
 if [ -z "$BASEDIR" ]; then
   BASEDIR="/data/openpilot"
 fi
@@ -125,11 +130,7 @@ function two_init {
     echo 2 > /proc/irq/$irq/smp_affinity_list
   done
   echo 2 > /proc/irq/193/smp_affinity_list # GPU
-
-  if [ -e "/proc/irq/184/smp_affinity_list" ]; then
-    echo 1 > /proc/irq/184/smp_affinity_list
-fi
-
+  
   # give GPU threads RT priority
   for pid in $(pgrep "kgsl"); do
     chrt -f -p 52 $pid

@@ -199,7 +199,7 @@ def fingerprint(logcan, sendcan, num_pandas):
 
 
 def get_car(logcan, sendcan, has_relay=False):
-  return CarInterface.new_car("TOYOTA", "COROLLA", {}, {})
+  return CarInterface.new_car("TOYOTA", TOYOTA.COROLLA, {}, {})
 
 
 def write_car_param(fingerprint="mock"):
