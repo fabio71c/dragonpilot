@@ -25,6 +25,7 @@ from openpilot.system.version import is_dirty, get_commit, get_version, get_orig
                            is_tested_branch, is_release_branch
 import json
 from openpilot.selfdrive.car.fingerprints import all_known_cars, all_legacy_fingerprint_cars
+from selfdrive.boardd.pandad import MockPanda as Panda
 
 
 def manager_init() -> None:

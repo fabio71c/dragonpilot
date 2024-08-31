@@ -30,6 +30,7 @@ from openpilot.selfdrive.controls.lib.events import Events, ET
 from openpilot.selfdrive.controls.lib.alertmanager import AlertManager, set_offroad_alert
 from openpilot.selfdrive.controls.lib.vehicle_model import VehicleModel
 from openpilot.system.hardware import HARDWARE, TICI
+from selfdrive.car.mock.carstate import get_car_state
 
 SOFT_DISABLE_TIME = 3  # seconds
 LDW_MIN_SPEED = 31 * CV.MPH_TO_MS
@@ -972,7 +973,7 @@ class Controls:
       self.experimental_mode = False
 
     # Sample data from sockets and get a carState
-    CS = self.data_sample()
+    CS = get_car_state()
     cloudlog.timestamp("Data sampled")
     self.prof.checkpoint("Sample")
 
