@@ -28,6 +28,18 @@ if __name__ == "__main__":
 
   pm = messaging.PubMaster(['controlsState', 'deviceState', 'pandaStates', 'carParams'])
 
+  def create_mock_controls_state():
+      cs = car.CarControl.new_message()
+      cs.enabled = True
+      cs.active = True
+      cs.actuators.steer = 0.0
+      cs.actuators.steerAngle = 0.0
+      cs.actuators.gas = 0.0
+      cs.actuators.brake = 0.0
+      return cs
+
+  mock_controls_state = create_mock_controls_state()
+
   msgs = {s: messaging.new_message(s) for s in ['controlsState', 'deviceState', 'carParams']}
   msgs['deviceState'].deviceState.started = True
   msgs['carParams'].carParams.openpilotLongitudinalControl = True

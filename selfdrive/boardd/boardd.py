@@ -1,6 +1,9 @@
 import time
 import traceback
 from selfdrive.boardd.pandad import MockPanda as Panda
+from openpilot.selfdrive.car.tests.test_car_interfaces import MOCK_CARSTATE
+from cereal import car
+import capnp
 
 def boardd_thread(sm=None, pm=None):
     print("Starting boardd_thread")
@@ -33,6 +36,17 @@ def boardd_thread(sm=None, pm=None):
             print("Traceback:")
             traceback.print_exc()
             time.sleep(1)
+
+def can_list_to_can_capnp(can_msgs):
+    dat = car.CanData.new_message()
+    dat.canId = []
+    dat.dat = []
+    dat.src = []
+    for can_id, _, dat, src in can_msgs:
+        dat.canId.append(can_id)
+        dat.dat.append(dat)
+        dat.src.append(src)
+    return dat
 
 if __name__ == "__main__":
     print("Starting boardd.py")

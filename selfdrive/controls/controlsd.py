@@ -66,6 +66,8 @@ DP_VAG_TIMEBOMB_BYPASS_WARNING = 34000
 DP_VAG_TIMEBOMB_BYPASS_START = 345000
 DP_VAG_TIMEBOMB_BYPASS_END = 348000
 
+MOCK_DRAGONPILOT = os.environ.get('MOCK_DRAGONPILOT', '0') == '1'
+
 class Controls:
   def __init__(self, sm=None, pm=None, can_sock=None, CI=None):
     config_realtime_process(4 if TICI else 3, Priority.CTRL_HIGH)
@@ -490,7 +492,10 @@ class Controls:
 
     # Update carState from CAN
     can_strs = messaging.drain_sock_raw(self.can_sock, wait_for_one=True)
-    CS = self.CI.update(self.CC, can_strs)
+    if MOCK_DRAGONPILOT:
+      CS = get_car_state()
+    else:
+      CS = self.CI.update(self.CC, can_strs)
     if len(can_strs) and REPLAY:
       self.can_log_mono_time = messaging.log_from_bytes(can_strs[0]).logMonoTime
 
@@ -896,7 +901,7 @@ class Controls:
     controlsState.state = self.state
     controlsState.engageable = not self.events.contains(ET.NO_ENTRY)
     controlsState.longControlState = self.LoC.long_control_state
-    controlsState.vPid = float(self.LoC.v_pid)
+    controlsState.vPid = float(self.LoC.pid.p)
     controlsState.vCruise = float(self.v_cruise_helper.v_cruise_kph)
     controlsState.vCruiseCluster = float(self.v_cruise_helper.v_cruise_cluster_kph)
     controlsState.upAccelCmd = float(self.LoC.pid.p)
