@@ -287,73 +287,25 @@ class Updater:
       print("Failed to get git commit hash")
       return "unknown"
 
-  def set_params(self, update_success: bool, failed_count: int, exception: Optional[str]) -> None:
-    self.params.put("UpdateFailedCount", str(failed_count))
+#!/usr/bin/env python3
+import time
+from openpilot.common.params import Params
 
-    self.params.put_bool("UpdaterFetchAvailable", self.update_available)
-    self.params.put("UpdaterAvailableBranches", ','.join(self.branches.keys()))
+def set_params():
+    params = Params()
+    params.put_bool("UpdateAvailable", False)
+    params.put_bool("UpdaterFetchAvailable", False)
+    params.put("UpdaterTargetBranch", "")
+    params.put("UpdaterAvailableBranches", "")
+    params.put("UpdateFailedCount", "0")
 
-    last_update = datetime.datetime.utcnow()
-    if update_success:
-      t = last_update.isoformat()
-      self.params.put("LastUpdateTime", t.encode('utf8'))
-    else:
-      try:
-        t = self.params.get("LastUpdateTime", encoding='utf8')
-        last_update = datetime.datetime.fromisoformat(t)
-      except (TypeError, ValueError):
-        pass
+def main():
+    set_params()
+    while True:
+        time.sleep(10)
 
-    if exception is None:
-      self.params.remove("LastUpdateException")
-    else:
-      self.params.put("LastUpdateException", exception)
-
-    # Write out current and new version info
-    def get_description(basedir: str) -> str:
-      if not os.path.exists(basedir):
-        return ""
-
-      version = ""
-      branch = ""
-      commit = ""
-      commit_date = ""
-      try:
-        branch = self.get_branch(basedir)
-        commit = self.get_commit_hash(basedir)[:7]
-        with open(os.path.join(basedir, "common", "version.h")) as f:
-          version = f.read().split('"')[1]
-
-        commit_unix_ts = run(["git", "show", "-s", "--format=%ct", "HEAD"], basedir).rstrip()
-        dt = datetime.datetime.fromtimestamp(int(commit_unix_ts))
-        commit_date = dt.strftime("%b %d")
-      except Exception:
-        cloudlog.exception("updater.get_description")
-      return f"{version} / {branch} / {commit} / {commit_date}"
-    self.params.put("UpdaterCurrentDescription", get_description(BASEDIR))
-    self.params.put("UpdaterCurrentReleaseNotes", parse_release_notes(BASEDIR))
-    self.params.put("UpdaterNewDescription", get_description(FINALIZED))
-    self.params.put("UpdaterNewReleaseNotes", parse_release_notes(FINALIZED))
-    self.params.put_bool("UpdateAvailable", self.update_ready)
-
-    # Handle user prompt
-    for alert in ("Offroad_UpdateFailed", "Offroad_ConnectivityNeeded", "Offroad_ConnectivityNeededPrompt"):
-      set_offroad_alert(alert, False)
-
-    now = datetime.datetime.utcnow()
-    dt = now - last_update
-    if failed_count > 15 and exception is not None and self.has_internet:
-      if is_tested_branch():
-        extra_text = "Ensure the software is correctly installed. Uninstall and re-install if this error persists."
-      else:
-        extra_text = exception
-      set_offroad_alert("Offroad_UpdateFailed", True, extra_text=extra_text)
-    elif failed_count > 0:
-      if dt.days > DAYS_NO_CONNECTIVITY_MAX:
-        set_offroad_alert("Offroad_ConnectivityNeeded", True)
-      elif dt.days > DAYS_NO_CONNECTIVITY_PROMPT:
-        remaining = max(DAYS_NO_CONNECTIVITY_MAX - dt.days, 1)
-        set_offroad_alert("Offroad_ConnectivityNeededPrompt", True, extra_text=f"{remaining} day{'' if remaining == 1 else 's'}.")
+if __name__ == "__main__":
+    main()
 
   def check_for_update(self) -> None:
     cloudlog.info("checking for updates")
