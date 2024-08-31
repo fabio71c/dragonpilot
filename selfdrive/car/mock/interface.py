@@ -39,4 +39,4 @@ class CarInterface(CarInterfaceBase):
     ret = CarInterfaceBase.get_std_params("mock")
     ret.carName = "mock"
     ret.carFingerprint = "MOCK"
-    return ret
+    return [ret]  # Return a list containing ret
