@@ -146,8 +146,12 @@ def manager_init() -> None:
                        dirty=is_dirty(),
                        device=HARDWARE.get_device_type())
 
-  # Add this line to force recognition of the fake panda
-  params.put_bool("PandaConnected", True)
+  # Add this function to simulate panda presence
+  def fake_panda_present():
+      return True
+  
+  # Replace the actual panda check with our fake check
+  HARDWARE.get_panda_present = fake_panda_present
 
 
 def manager_prepare() -> None:
