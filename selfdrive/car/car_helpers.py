@@ -48,18 +48,20 @@ def load_interfaces(brand_names):
     path = f'openpilot.selfdrive.car.{brand_name}'
     CarInterface = __import__(path + '.interface', fromlist=['CarInterface']).CarInterface
 
-    if os.path.exists(BASEDIR + '/' + path.replace('.', '/') + '/carstate.py'):
+    if brand_name == 'mock':
+      # Special case for mock
+      from openpilot.selfdrive.car.mock.carstate import CarState
+    else:
       CarState = __import__(path + '.carstate', fromlist=['CarState']).CarState
-    else:
-      CarState = None
 
-    if os.path.exists(BASEDIR + '/' + path.replace('.', '/') + '/carcontroller.py'):
-      CarController = __import__(path + '.carcontroller', fromlist=['CarController']).CarController
-    else:
-      CarController = None
+    try:
+      CarControl = __import__(path + '.carcontroller', fromlist=['CarController']).CarController
+    except ImportError:
+      CarControl = None
 
-    for model_name in brand_names[brand_name]:
-      ret[model_name] = (CarInterface, CarController, CarState)
+    for r in CarInterface.get_params(brand_name):
+      ret[r.carFingerprint] = (CarInterface, CarState, CarControl, r)
+
   return ret
 
 

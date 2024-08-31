@@ -1,4 +1,5 @@
 import random
+from openpilot.selfdrive.car.interfaces import CarStateBase
 
 class MockCarState:
     def __init__(self):
@@ -19,3 +20,20 @@ class MockCarState:
 
 def get_car_state():
     return MockCarState()
+
+class CarState(CarStateBase):
+    def __init__(self, CP):
+        super().__init__(CP)
+        self.speed = 0
+        self.steering_angle = 0
+        self.brake_pressed = False
+        self.gas_pressed = False
+
+    def update(self, cp, cp_cam):
+        # Update mock state here
+        self.speed += 1  # Just an example, increase speed by 1 unit each update
+        self.steering_angle = (self.steering_angle + 5) % 360  # Rotate steering
+        self.brake_pressed = not self.brake_pressed  # Toggle brake
+        self.gas_pressed = not self.gas_pressed  # Toggle gas
+
+        return self.speed, self.steering_angle, self.brake_pressed, self.gas_pressed
