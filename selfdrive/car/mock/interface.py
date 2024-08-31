@@ -33,3 +33,10 @@ class CarInterface(CarInterfaceBase):
   def apply(self, c, now_nanos):
     actuators = car.CarControl.Actuators.new_message()
     return actuators, []
+
+  @staticmethod
+  def get_params(fingerprint, car_fw, experimental_long, docs):
+    ret = CarInterfaceBase.get_std_params("mock")
+    ret.carName = "mock"
+    ret.carFingerprint = "MOCK"
+    return ret

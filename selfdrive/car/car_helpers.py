@@ -59,7 +59,14 @@ def load_interfaces(brand_names):
     except ImportError:
       CarControl = None
 
-    for r in CarInterface.get_params(brand_name):
+    # Create mock arguments for get_params
+    mock_fingerprint = {}
+    mock_car_fw = []
+    mock_experimental_long = False
+    mock_docs = False
+
+    # Call get_params with mock arguments
+    for r in CarInterface.get_params(mock_fingerprint, mock_car_fw, mock_experimental_long, mock_docs):
       ret[r.carFingerprint] = (CarInterface, CarState, CarControl, r)
 
   return ret
