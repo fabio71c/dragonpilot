@@ -63,9 +63,9 @@ def load_interfaces(brand_names):
     mock_fingerprint = {}
     mock_car_fw = []
     mock_experimental_long = False
-    mock_docs = False 
+    mock_docs = False  # Add this line
 
-    # Call get_params with all four arguments
+    # Update this line to include mock_docs
     for r in CarInterface.get_params(mock_fingerprint, mock_car_fw, mock_experimental_long, mock_docs):
       ret[r.carFingerprint] = (CarInterface, CarState, CarControl, r)
 
