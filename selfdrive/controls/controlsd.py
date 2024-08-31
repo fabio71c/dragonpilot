@@ -72,12 +72,13 @@ if MOCK_DRAGONPILOT:
   from selfdrive.boardd.boardd import MOCK_CARSTATE as CS
 else:
   # Original import for real car state
+  from selfdrive.car.car_helpers import get_car
 
-class Controls:
-  def __init__(self, sm=None, pm=None, can_sock=None, CI=None):
-    config_realtime_process(4 if TICI else 3, Priority.CTRL_HIGH)
+  class Controls:
+    def __init__(self, sm=None, pm=None, can_sock=None, CI=None):
+      config_realtime_process(4 if TICI else 3, Priority.CTRL_HIGH)
 
-    self.dp_gps_ok_once = False
+      self.dp_gps_ok_once = False
 
     # Ensure the current branch is cached, otherwise the first iteration of controlsd lags
     self.branch = get_short_branch("")
