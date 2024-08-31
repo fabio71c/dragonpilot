@@ -13,6 +13,7 @@ from openpilot.selfdrive.car.fw_versions import get_fw_versions_ordered, get_pre
 from openpilot.system.swaglog import cloudlog
 import cereal.messaging as messaging
 from openpilot.selfdrive.car import gen_empty_fingerprint
+from selfdrive.car.toyota.values import CAR as TOYOTA
 
 FRAME_FINGERPRINT = 100  # 1s
 
@@ -197,21 +198,13 @@ def fingerprint(logcan, sendcan, num_pandas):
   return car_fingerprint, finger, vin, car_fw, source, exact_match
 
 
-def get_car(logcan, sendcan, experimental_long_allowed, num_pandas=1):
-  candidate, fingerprints, vin, car_fw, source, exact_match = fingerprint(logcan, sendcan, num_pandas)
+def get_car(logcan, sendcan, has_relay=False):
+  # Comment out the actual fingerprinting logic
+  # fingerprints, vin = fingerprint(logcan, sendcan, has_relay)
+  
+  # Return a specific Toyota model (e.g., Corolla)
+  return CarInterface.new_car("TOYOTA", TOYOTA.COROLLA, {}, {})
 
-  if candidate is None:
-    cloudlog.event("car doesn't match any fingerprints", fingerprints=fingerprints, error=True)
-    candidate = "mock"
-
-  CarInterface, CarController, CarState = interfaces[candidate]
-  CP = CarInterface.get_params(candidate, fingerprints, car_fw, experimental_long_allowed, docs=False)
-  CP.carVin = vin
-  CP.carFw = car_fw
-  CP.fingerprintSource = source
-  CP.fuzzyFingerprint = not exact_match
-
-  return CarInterface(CP, CarController, CarState), CP
 
 def write_car_param(fingerprint="mock"):
   params = Params()
