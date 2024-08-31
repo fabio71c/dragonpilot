@@ -27,19 +27,15 @@ def can_sender(panda, msgs, bus):
   # Always return True to simulate successful sending
   return True
 
-def get_fake_panda():
-    class FakePanda:
-        def __init__(self):
-            self.health = {"voltage": 12000, "current": 5000, "uptime": 1000}
-        def get_health(self):
-            return self.health
-        def can_recv(self):
-            # Simulate receiving CAN messages
-            return []
-        def can_send(self, addr, dat, bus):
-            # Simulate sending CAN messages
-            return True
-    return FakePanda()
+class FakePanda:
+    def __init__(self):
+        self.health = {"voltage": 12000, "current": 5000}
+    def get_health(self):
+        return self.health
+    def can_recv(self):
+        return []
+    def can_send(self, addr, dat, bus):
+        return True
 
 def boardd_mock_loop():
   # Simulate panda presence
@@ -62,7 +58,7 @@ def boardd_mock_loop():
 
 def boardd_loop():
   cloudlog.info("Starting fake boardd loop")
-  fake_panda = get_fake_panda()
+  fake_panda = FakePanda()
   
   while True:
     # Simulate panda communication

@@ -281,7 +281,11 @@ class Updater:
     return run(["git", "rev-parse", "--abbrev-ref", "HEAD"], path).rstrip()
 
   def get_commit_hash(self, path: str = OVERLAY_MERGED) -> str:
-    return run(["git", "rev-parse", "HEAD"], path).rstrip()
+    try:
+      return run(["git", "rev-parse", "HEAD"], path).rstrip()
+    except subprocess.CalledProcessError:
+      print("Failed to get git commit hash")
+      return "unknown"
 
   def set_params(self, update_success: bool, failed_count: int, exception: Optional[str]) -> None:
     self.params.put("UpdateFailedCount", str(failed_count))

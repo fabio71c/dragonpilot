@@ -126,6 +126,10 @@ function two_init {
   done
   echo 2 > /proc/irq/193/smp_affinity_list # GPU
 
+  if [ -e "/proc/irq/184/smp_affinity_list" ]; then
+    echo 1 > /proc/irq/184/smp_affinity_list
+fi
+
   # give GPU threads RT priority
   for pid in $(pgrep "kgsl"); do
     chrt -f -p 52 $pid

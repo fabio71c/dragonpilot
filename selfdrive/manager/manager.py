@@ -202,45 +202,49 @@ def manager_thread() -> None:
   started_prev = False
 
   while True:
-    sm.update()
+    try:
+      sm.update()
 
-    started = sm['deviceState'].started
+      started = sm['deviceState'].started
 
-    if started and not started_prev:
-      params.clear_all(ParamKeyType.CLEAR_ON_ONROAD_TRANSITION)
-    elif not started and started_prev:
-      params.clear_all(ParamKeyType.CLEAR_ON_OFFROAD_TRANSITION)
+      if started and not started_prev:
+        params.clear_all(ParamKeyType.CLEAR_ON_ONROAD_TRANSITION)
+      elif not started and started_prev:
+        params.clear_all(ParamKeyType.CLEAR_ON_OFFROAD_TRANSITION)
 
-    # update onroad params, which drives boardd's safety setter thread
-    if started != started_prev:
-      write_onroad_params(started, params)
+      # update onroad params, which drives boardd's safety setter thread
+      if started != started_prev:
+        write_onroad_params(started, params)
 
-    started_prev = started
+      started_prev = started
 
-    ensure_running(managed_processes.values(), started, params=params, CP=sm['carParams'], not_run=ignore)
+      ensure_running(managed_processes.values(), started, params=params, CP=sm['carParams'], not_run=ignore)
 
-    running = ' '.join("%s%s\u001b[0m" % ("\u001b[32m" if p.proc.is_alive() else "\u001b[31m", p.name)
-                       for p in managed_processes.values() if p.proc)
-    print(running)
-    cloudlog.debug(running)
+      running = ' '.join("%s%s\u001b[0m" % ("\u001b[32m" if p.proc.is_alive() else "\u001b[31m", p.name)
+                         for p in managed_processes.values() if p.proc)
+      print(running)
+      cloudlog.debug(running)
 
-    # send managerState
-    msg = messaging.new_message('managerState')
-    msg.managerState.processes = [p.get_process_state_msg() for p in managed_processes.values()]
-    pm.send('managerState', msg)
+      # send managerState
+      msg = messaging.new_message('managerState')
+      msg.managerState.processes = [p.get_process_state_msg() for p in managed_processes.values()]
+      pm.send('managerState', msg)
 
-    # Exit main loop when uninstall/shutdown/reboot is needed
-    shutdown = False
-    for param in ("DoUninstall", "DoShutdown", "DoReboot", "dp_reset_conf"):
-      if params.get_bool(param):
-        if param == "dp_reset_conf":
-          os.system("rm -fr /data/params/d/dp_*")
-        shutdown = True
-        params.put("LastManagerExitReason", f"{param} {datetime.datetime.now()}")
-        cloudlog.warning(f"Shutting down manager - {param} set")
+      # Exit main loop when uninstall/shutdown/reboot is needed
+      shutdown = False
+      for param in ("DoUninstall", "DoShutdown", "DoReboot", "dp_reset_conf"):
+        if params.get_bool(param):
+          if param == "dp_reset_conf":
+            os.system("rm -fr /data/params/d/dp_*")
+          shutdown = True
+          params.put("LastManagerExitReason", f"{param} {datetime.datetime.now()}")
+          cloudlog.warning(f"Shutting down manager - {param} set")
 
-    if shutdown:
-      break
+      if shutdown:
+        break
+    except Exception as e:
+      print(f"Error in manager thread: {e}")
+      time.sleep(1)
 
 
 def main() -> None:

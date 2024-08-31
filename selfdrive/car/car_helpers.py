@@ -199,11 +199,7 @@ def fingerprint(logcan, sendcan, num_pandas):
 
 
 def get_car(logcan, sendcan, has_relay=False):
-  # Comment out the actual fingerprinting logic
-  # fingerprints, vin = fingerprint(logcan, sendcan, has_relay)
-  
-  # Return a specific Toyota model (e.g., Corolla)
-  return CarInterface.new_car("TOYOTA", TOYOTA.COROLLA, {}, {})
+  return CarInterface.new_car("TOYOTA", "COROLLA", {}, {})
 
 
 def write_car_param(fingerprint="mock"):
