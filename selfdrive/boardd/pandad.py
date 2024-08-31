@@ -27,28 +27,27 @@ class MockPanda:
             'ignition_line': 1,
             'ignition_can': 1,
         }
+        self.can_messages = []  # Initialize the can_messages list
 
     def health(self):
         self._health['uptime'] += 1
         return self._health
 
-    def get_health(self) -> Dict:
-        # Simulate some fluctuation in voltage and current
-        self.health['voltage'] = 12000 + random.randint(-500, 500)
-        self.health['current'] = 5000 + random.randint(-1000, 1000)
-        self.health['uptime'] = int(time.time())
-        return self.health
-
-    def can_send(self, messages: List) -> None:
-        self.can_messages.extend(messages)
-        print(f"Sent CAN messages: {messages}")
-
-    def can_recv(self) -> List:
-        # Simulate receiving CAN messages
-        received = self.can_messages[:random.randint(0, len(self.can_messages))]
-        self.can_messages = self.can_messages[len(received):]
-        print(f"Received CAN messages: {received}")
+    def can_recv(self):
+        # Generate random CAN messages
+        num_messages = random.randint(0, 10)
+        received = []
+        for _ in range(num_messages):
+            addr = random.randint(0, 0x7FF)
+            bus = random.randint(0, 2)
+            data = bytes([random.randint(0, 255) for _ in range(8)])
+            received.append((addr, 0, data, bus))
         return received
+
+    def can_send_many(self, can_msgs, timeout=None):
+        # Simulate sending CAN messages
+        self.can_messages.extend(can_msgs)
+        return True
 
     def set_safety_mode(self, mode: int) -> None:
         self.health['safety_mode'] = mode

@@ -17,7 +17,9 @@ def boardd_thread(sm=None, pm=None):
             # Simulate receiving CAN messages
             received = mock_panda.can_recv()
             if received:
-                print(f"Received CAN messages: {received}")
+                print(f"Received {len(received)} CAN messages")
+                for msg in received[:5]:  # Print first 5 messages
+                    print(f"  {msg}")
             else:
                 print("No CAN messages received")
             
