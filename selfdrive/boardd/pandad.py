@@ -16,6 +16,10 @@ from openpilot.system.hardware import HARDWARE
 from openpilot.system.swaglog import cloudlog
 from openpilot.selfdrive.boardd.panda_simulated import PandaSimulated
 
+# Declare the global variable at the top of the file
+global panda
+panda = None
+
 def get_expected_signature(panda: Panda) -> bytes:
   try:
     fn = os.path.join(FW_PATH, panda.get_mcu_type().config.app_fn)
@@ -126,6 +130,7 @@ def panda_sort_cmp(a: Panda, b: Panda):
 
 
 def main() -> NoReturn:
+  global panda
   cloudlog.info("Starting simulated panda")
 
   while True:
