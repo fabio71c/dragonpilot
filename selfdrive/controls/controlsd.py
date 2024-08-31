@@ -15,7 +15,7 @@ from openpilot.common.conversions import Conversions as CV
 from panda import ALTERNATIVE_EXPERIENCE
 from openpilot.system.swaglog import cloudlog
 from openpilot.system.version import is_release_branch, get_short_branch
-from openpilot.selfdrive.boardd.boardd import can_list_to_can_capnp
+from openpilot.selfdrive.boardd.boardd_api_impl import can_list_to_can_capnp
 from openpilot.selfdrive.car.car_helpers import get_car, get_startup_event, get_one_can
 from openpilot.selfdrive.controls.lib.lateral_planner import CAMERA_OFFSET
 from openpilot.selfdrive.controls.lib.drive_helpers import VCruiseHelper, get_lag_adjusted_curvature

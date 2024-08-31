@@ -2,7 +2,7 @@
 
 # Cython, now uses scons to build
 import time
-from selfdrive.swaglog import cloudlog
+from openpilot.system.swaglog import cloudlog
 from openpilot.common.params import Params
 from openpilot.selfdrive.boardd.boardd_api_impl import can_list_to_can_capnp
 

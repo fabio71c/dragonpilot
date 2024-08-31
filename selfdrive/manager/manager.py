@@ -26,6 +26,9 @@ from openpilot.system.version import is_dirty, get_commit, get_version, get_orig
 import json
 from openpilot.selfdrive.car.fingerprints import all_known_cars, all_legacy_fingerprint_cars
 
+# Add or modify these imports at the top of the file
+from openpilot.system.hardware import HARDWARE
+from openpilot.common.params import Params
 
 def manager_init() -> None:
   # update system time from panda
