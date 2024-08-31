@@ -1,4 +1,5 @@
 import time
+import traceback
 from selfdrive.boardd.pandad import MockPanda as Panda
 
 def boardd_thread(sm=None, pm=None):
@@ -27,6 +28,8 @@ def boardd_thread(sm=None, pm=None):
             time.sleep(1)  # Sleep for 1 second to prevent flooding the console
         except Exception as e:
             print(f"Error in boardd_thread: {e}")
+            print("Traceback:")
+            traceback.print_exc()
             time.sleep(1)
 
 if __name__ == "__main__":
