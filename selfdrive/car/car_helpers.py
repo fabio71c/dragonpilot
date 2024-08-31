@@ -14,6 +14,7 @@ from openpilot.system.swaglog import cloudlog
 import cereal.messaging as messaging
 from openpilot.selfdrive.car import gen_empty_fingerprint
 from selfdrive.car.toyota.values import CAR as TOYOTA
+from selfdrive.car.toyota.interface import CarInterface as ToyotaInterface
 
 FRAME_FINGERPRINT = 100  # 1s
 
@@ -199,8 +200,10 @@ def fingerprint(logcan, sendcan, num_pandas):
 
 
 def get_car(logcan, sendcan, has_relay=False):
-  return CarInterface.new_car("TOYOTA", TOYOTA.COROLLA, {}, {})
-
+  # Bypass fingerprinting and always return Toyota Corolla
+  candidate = TOYOTA.COROLLA
+  car_params = ToyotaInterface.get_params(candidate)
+  return ToyotaInterface(car_params, CarController), car_params
 
 def write_car_param(fingerprint="mock"):
   params = Params()

@@ -37,11 +37,19 @@ from openpilot.common.params import Params
 from openpilot.common.realtime import set_core_affinity
 from openpilot.system.hardware import HARDWARE, PC, AGNOS
 from openpilot.selfdrive.loggerd.config import ROOT
-from openpilot.system.loggerd.xattr_cache import getxattr, setxattr
 from openpilot.selfdrive.statsd import STATS_DIR
 from openpilot.system.swaglog import SWAGLOG_DIR, cloudlog
 from openpilot.system.version import get_commit, get_origin, get_short_branch, get_version
 
+try:
+    from openpilot.system.loggerd.xattr_cache import getxattr, setxattr
+except ImportError:
+    # Fallback to a mock implementation if the module is not found
+    def getxattr(path, attr):
+        return b''
+
+    def setxattr(path, attr, data):
+        pass
 
 # TODO: use socket constant when mypy recognizes this as a valid attribute
 TCP_USER_TIMEOUT = 18

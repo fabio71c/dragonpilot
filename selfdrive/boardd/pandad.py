@@ -14,7 +14,7 @@ from openpilot.common.params import Params
 from openpilot.selfdrive.boardd.set_time import set_time
 from openpilot.system.hardware import HARDWARE
 from openpilot.system.swaglog import cloudlog
-
+from openpilot.selfdrive.boardd.panda_simulated import PandaSimulated
 
 def get_expected_signature(panda: Panda) -> bytes:
   try:
@@ -126,7 +126,17 @@ def panda_sort_cmp(a: Panda, b: Panda):
 
 
 def main() -> NoReturn:
-  cloudlog.info("Starting fake panda")
+  cloudlog.info("Starting simulated panda")
+
+  while True:
+    try:
+      panda = PandaSimulated()
+      cloudlog.info("Connected to simulated panda")
+      break
+    except Exception:
+      cloudlog.exception("pandad.connect_simulated_panda.failed")
+    time.sleep(1)
+
   # Simulate panda presence
   class FakePanda:
     def __init__(self):
