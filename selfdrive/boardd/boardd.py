@@ -5,7 +5,7 @@ from openpilot.selfdrive.boardd.boardd_api_impl import can_list_to_can_capnp
 assert can_list_to_can_capnp
 
 import time
-from selfdrive.swaglog import cloudlog
+from openpilot.system.swaglog import cloudlog
 from selfdrive.car.toyota.values import CAR as TOYOTA
 
 def can_capnp_to_can_list(can, src_filter=None):

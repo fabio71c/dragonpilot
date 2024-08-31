@@ -126,6 +126,18 @@ def panda_sort_cmp(a: Panda, b: Panda):
 
 
 def main() -> NoReturn:
+  cloudlog.info("Starting fake panda")
+  # Simulate panda presence
+  class FakePanda:
+    def __init__(self):
+      self.health = {"voltage": 12000, "current": 5000}
+    def get_health(self):
+      return self.health
+
+  # Replace the actual panda detection with our fake panda
+  global panda
+  panda = FakePanda()
+
   count = 0
   first_run = True
   params = Params()
