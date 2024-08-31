@@ -1,27 +1,34 @@
-# pylint: skip-file
+import time
 from selfdrive.boardd.pandad import MockPanda as Panda
 
 def boardd_thread(sm=None, pm=None):
+    print("Starting boardd_thread")
     global mock_panda
     mock_panda = Panda()
+    print("Mock Panda initialized")
 
     while True:
         try:
+            print("Boardd loop iteration")
+            health = mock_panda.health()
+            print(f"Mock panda health: {health}")
+            
             # Simulate receiving CAN messages
             received = mock_panda.can_recv()
-            print(f"Received CAN messages: {received}")
+            if received:
+                print(f"Received CAN messages: {received}")
+            else:
+                print("No CAN messages received")
+            
+            # Simulate sending CAN messages
+            mock_panda.can_send_many([(0x1, 0, b'\x01\x02\x03', 0)])
+            print("Sent mock CAN message")
+            
+            time.sleep(1)  # Sleep for 1 second to prevent flooding the console
         except Exception as e:
-            print(f"Error receiving CAN messages: {e}")
-        # ... rest of the loop
+            print(f"Error in boardd_thread: {e}")
+            time.sleep(1)
 
-          # Simulate sending CAN messages 
-# Cython, now uses scons to build
-from openpilot.selfdrive.boardd.boardd_api_impl import can_list_to_can_capnp
-assert can_list_to_can_capnp
-
-def can_capnp_to_can_list(can, src_filter=None):
-  ret = []
-  for msg in can:
-    if src_filter is None or msg.src in src_filter:
-      ret.append((msg.address, msg.busTime, msg.dat, msg.src))
-  return ret
+if __name__ == "__main__":
+    print("Starting boardd.py")
+    boardd_thread()
