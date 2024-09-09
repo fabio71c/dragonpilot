@@ -18,7 +18,7 @@ def set_time(logger):
       return
 
     for s in ps:
-      with Panda(serial=s) as p:
+      with MockMockPanda(serial=s) as p:
         if not p.is_internal():
           continue
 

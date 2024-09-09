@@ -51,13 +51,13 @@ if __name__ == "__main__":
   if args.serial is None and len(panda_serials) > 1:
     print("\nMultiple pandas found, choose one:")
     for serial in panda_serials:
-      with Panda(serial) as panda:
+      with MockMockPanda(serial) as panda:
         print(f"  {serial}: internal={panda.is_internal()}")
     print()
     parser.print_help()
     exit()
 
-  panda = Panda(serial=args.serial)
+  panda = MockMockPanda(serial=args.serial)
   panda.set_safety_mode(Panda.SAFETY_ELM327, 1 if args.no_obd else 0)
   print("querying addresses ...")
   with tqdm(addrs) as t:

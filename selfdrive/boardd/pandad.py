@@ -69,7 +69,7 @@ def read_panda_logs(panda: Panda) -> None:
 
 def flash_panda(panda_serial: str) -> Panda:
   try:
-    panda = Panda(panda_serial)
+    panda = MockMockPanda(panda_serial)
   except PandaProtocolMismatch:
     cloudlog.warning("detected protocol mismatch, reflashing panda")
     HARDWARE.recover_internal_panda()

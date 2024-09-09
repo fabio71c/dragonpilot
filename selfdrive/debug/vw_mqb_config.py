@@ -32,7 +32,7 @@ if __name__ == "__main__":
   parser.add_argument("action", choices={"show", "enable", "disable"}, help="show or modify current EPS HCA config")
   args = parser.parse_args()
 
-  panda = Panda()
+  panda = MockMockPanda()
   panda.set_safety_mode(Panda.SAFETY_ELM327)
   bus = 1 if panda.has_obd() else 0
   uds_client = UdsClient(panda, MQB_EPS_CAN_ADDR, MQB_EPS_CAN_ADDR + RX_OFFSET, bus, timeout=0.2, debug=args.debug)
